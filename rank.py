@@ -173,7 +173,7 @@ async def get_clan_report(clan_name, clan_id = 0):
     clan_list = await search_clan(clan_name, clan_id)
     report = ""
     if len(clan_list) == 0:
-        report = "未找到工会数据"
+        report = "找不到指定工会数据"
     elif len(clan_list) == 1:
         report = format_clan_info(clan_list[0])
     else:   #列出全部结果
@@ -186,7 +186,7 @@ async def get_subsection_report():
     clan_list = await query_subsection_info_biligame()
     report = ""
     if len(clan_list) == 0:
-        report = "获取数据异常"
+        report = "数据获取失败\n"
     else:   #列出全部结果
         report = "分段数据:\n"
         for info in clan_list:
@@ -204,7 +204,7 @@ async def get_follow_clan_report(group_id):
             report += format_simple_clan_info(clan_list[0])
             empty = False
     if empty:
-        report += "无"
+        report += "数据获取失败\n"
     return report
 
 @sv.on_fullmatch('查询分段')
@@ -215,7 +215,7 @@ async def query_subsection(bot, ev: CQEvent):
         return
     lmt.start_cd(uid)
     msg = await get_subsection_report()
-    await bot.send(ev, msg)
+    await bot.send(ev, msg, at_sender=True)
 
 @sv.on_prefix(['查询排名', '排名查询'])
 async def query_rank(bot, ev: CQEvent):
@@ -234,7 +234,7 @@ async def query_rank(bot, ev: CQEvent):
         return
     lmt.start_cd(uid)
     msg = await get_clan_report(clan_name, clan_id)
-    await bot.send(ev, msg)
+    await bot.send(ev, msg, at_sender=True)
 
 @sv.on_prefix('添加关注')
 async def add_follow(bot, ev: CQEvent):
@@ -259,7 +259,7 @@ async def add_follow(bot, ev: CQEvent):
     clan_list = await search_clan(clan_name, clan_id)
     msg = ""
     if len(clan_list) == 0:
-        msg = "未找到工会数据"
+        msg = "找不到指定工会"
     elif len(clan_list) == 1:
         info = clan_list[0]
         add_follow_clan(gid, clan_name, info["clan_id"])
@@ -270,7 +270,7 @@ async def add_follow(bot, ev: CQEvent):
         for info in clan_list:
             msg += format_dense_clan_info(info)
     
-    await bot.send(ev, msg)
+    await bot.send(ev, msg, at_sender=True)
 
 @sv.on_fullmatch('查询关注')
 async def query_follow(bot, ev: CQEvent):
@@ -281,7 +281,7 @@ async def query_follow(bot, ev: CQEvent):
         return
     lmt.start_cd(uid)
     msg = await get_follow_clan_report(gid)
-    await bot.send(ev, msg)
+    await bot.send(ev, msg, at_sender=True)
 
 @sv.on_fullmatch('清空关注')
 async def clear_follow(bot, ev: CQEvent):
@@ -300,14 +300,14 @@ async def clear_follow(bot, ev: CQEvent):
 #每日推送
 @sv_push.scheduled_job('cron',hour='5',minute='30')
 async def clanbattle_rank_push_daily():
-    bot = hoshino.get_bot()
-    group_list = get_group_list()
     days = get_days_from_battle_start()
     if days >= cycle_data['battle_days']:
         return
+    bot = hoshino.get_bot()
+    group_list = get_group_list()
     for gid in group_list:
         if days == 0:
-            msg = '工会战开始啦!你看这都几点了?还不快起床出刀?'
+            msg = '工会战开始啦!看看这都几点了?还不快起床出刀?'
         else:
             msg = await get_follow_clan_report(gid)
         try:
@@ -316,17 +316,17 @@ async def clanbattle_rank_push_daily():
         except:
             hoshino.logger.info(f'群{gid} 推送排名错误')
         
-#最后一天推送
-@sv_push.scheduled_job('cron',hour='0',minute='30')
+#最后一天推送 0点之后数据全部木大 所以改到最后一天23点55推送最终数据
+@sv_push.scheduled_job('cron',hour='23',minute='55')
 async def clanbattle_rank_push_final():
+    days = get_days_from_battle_start()
+    if days != cycle_data['battle_days'] - 1:
+        return
     bot = hoshino.get_bot()
     group_list = get_group_list()
-    days = get_days_from_battle_start()
-    if days != cycle_data['battle_days']:
-        return
     for gid in group_list:
-        msg = await get_follow_clan_report(gid)
-        msg += '工会战辛苦了!祝各位人生有梦,各自精彩!'
+        msg = '工会战即将结束,各位会员辛苦了!\n祝大家人生有梦,各自精彩!\n'
+        msg += await get_follow_clan_report(gid)
         try:
             await bot.send_group_msg(group_id=int(gid), message = msg)
             hoshino.logger.info(f'群{gid} 推送排名成功')
