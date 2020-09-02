@@ -19,8 +19,8 @@ cycle_data = {
     'battle_days': 6
 }
 
-sv = Service('clanbattle_rank', bundle='pcr查询', help_= '查询排名 工会名 [工会id] : 查询指定工会排名\n查询分段 : 查询分段信息\n查询关注 : 查询关注的工会信息\n添加关注 工会名 [工会id] : (需要管理员权限)将指定工会加入关注列表,如有重名需要附加工会id\n清空关注 : (需要管理员权限)清空关注列表')
-sv_push = Service('clanbattle_rank_push', bundle='pcr查询', help_= '关注工会信息每日自动推送')
+sv = Service('clanbattle_rank', bundle='pcr查询', help_= '查询排名 公会名 [会长名] : 查询指定公会排名\n查询分段 : 查询分段信息\n查询关注 : 查询关注的公会信息\n添加关注 公会名 [会长名] : (需要管理员权限)将指定公会加入关注列表,如有重名需要附加会长名\n清空关注 : (需要管理员权限)清空关注列表')
+sv_push = Service('clanbattle_rank_push', bundle='pcr查询', help_= '关注公会信息每日自动推送')
 
 boss_data = {
     "hp": [
@@ -78,10 +78,9 @@ def get_group_list():
     return group_list
         
 
-def add_follow_clan(group_id, clan_name, clan_id):
-    clan_id = int(clan_id)
+def add_follow_clan(group_id, clan_name, leader_name):
     config = load_group_config(group_id)
-    config[clan_id] = clan_name
+    config[clan_name] = leader_name
     save_group_config(group_id, config)
 
 def get_boss_process(score):
@@ -113,28 +112,20 @@ def get_boss_process(score):
 
 def format_clan_info(clan_info):
     msg = f'公会:{clan_info["clan_name"]}\n' \
-        + f'排名:{clan_info["rank"]}\n' \
         + f'会长:{clan_info["leader_name"]}\n' \
-        + f'工会id:{clan_info["clan_id"]}\n' \
+        + f'排名:{clan_info["rank"]}\n' \
         + f'分数:{clan_info["damage"]}\n' \
         + f'进度:{get_boss_process(clan_info["damage"])}\n'
     return msg
 
-def format_dense_clan_info(clan_info):
-    msg = f'排名:{clan_info["rank"]}  ' \
-        + f'工会:{clan_info["clan_name"]}  ' \
+def format_compact_clan_info(clan_info):
+    msg = f'公会:{clan_info["clan_name"]}  ' \
         + f'会长:{clan_info["leader_name"]}  ' \
-        + f'工会id:{clan_info["clan_id"]}  ' \
-        + f'分数:{clan_info["damage"]}\n'
-    return msg
-
-def format_simple_clan_info(clan_info):
-    msg = f'{clan_info["clan_name"]}  ' \
         + f'排名:{clan_info["rank"]}  ' \
         + f'分数:{clan_info["damage"]}\n'
     return msg
 
-#从bilibili获取工会信息列表
+#从bilibili获取公会信息列表
 async def query_clan_info_biligame(clan_name):
     info_list = []
     try:
@@ -145,7 +136,7 @@ async def query_clan_info_biligame(clan_name):
         hoshino.logger.error(f'clan info response error: {e}')
     return info_list
 
-#从bilibili获取工会信息列表
+#从bilibili获取公会信息列表
 async def query_subsection_info_biligame():
     info_list = []
     try:
@@ -156,30 +147,29 @@ async def query_subsection_info_biligame():
         hoshino.logger.error(f'clan info response error: {e}')
     return info_list
 
-#搜索工会并返回结果数组
-async def search_clan(clan_name, clan_id = 0):
-    clan_id = int(clan_id)
+#搜索公会并返回结果数组
+async def search_clan(clan_name, leader_name = None):
     info_list = await query_clan_info_biligame(clan_name)
     result_list = []
     for info in info_list:
-        if clan_id > 0: #指定了工会id
-            if int(info["clan_id"]) == clan_id:
+        if leader_name: #指定了会长名
+            if info["leader_name"] == leader_name:
                 result_list.append(info)
         else:
             result_list.append(info)
     return result_list
 
-async def get_clan_report(clan_name, clan_id = 0):
-    clan_list = await search_clan(clan_name, clan_id)
+async def get_clan_report(clan_name, leader_name):
+    clan_list = await search_clan(clan_name, leader_name)
     report = ""
     if len(clan_list) == 0:
-        report = "找不到指定工会数据"
+        report = "找不到指定公会数据"
     elif len(clan_list) == 1:
         report = format_clan_info(clan_list[0])
     else:   #列出全部结果
         report = "查询到以下结果\n"
         for info in clan_list:
-            report += format_dense_clan_info(info)
+            report += format_compact_clan_info(info)
     return report
 
 async def get_subsection_report():
@@ -190,19 +180,21 @@ async def get_subsection_report():
     else:   #列出全部结果
         report = "分段数据:\n"
         for info in clan_list:
-            report += format_dense_clan_info(info)
+            report += format_compact_clan_info(info)
     return report
 
-#获取关注工会报告
+#获取关注公会报告
 async def get_follow_clan_report(group_id):
-    report = "关注的工会排名:\n"
+    report = "关注的公会排名:\n"
     config = load_group_config(group_id)
     empty = True
-    for clan_id, clan_name in config.items():
-        clan_list = await search_clan(clan_name, clan_id)
+    for clan_name, leader_name in config.items():
+        clan_list = await search_clan(clan_name, leader_name)
         if len(clan_list) == 1:
-            report += format_simple_clan_info(clan_list[0])
+            report += format_compact_clan_info(clan_list[0])
             empty = False
+        else:
+            report += f"公会:{clan_name}  会长:{leader_name}  未找到数据\n"
     if empty:
         report += "数据获取失败\n"
     return report
@@ -220,20 +212,20 @@ async def query_subsection(bot, ev: CQEvent):
 @sv.on_prefix(['查询排名', '排名查询'])
 async def query_rank(bot, ev: CQEvent):
     uid = ev.user_id
-    clan_id = 0
+    leader_name = None
     args = ev.message.extract_plain_text().split()
     if len(args) == 0:
         await bot.send(ev, '参数错误', at_sender=True)
         return
     clan_name = args[0]
-    if len(args) > 1 and args[1].isdigit():
-        clan_id = int(args[1])
+    if len(args) > 1:
+        leader_name = args[1]
 
     if not lmt.check(uid):
         await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
         return
     lmt.start_cd(uid)
-    msg = await get_clan_report(clan_name, clan_id)
+    msg = await get_clan_report(clan_name, leader_name)
     await bot.send(ev, msg, at_sender=True)
 
 @sv.on_prefix('添加关注')
@@ -243,32 +235,32 @@ async def add_follow(bot, ev: CQEvent):
     if not priv.check_priv(ev, priv.ADMIN):
         await bot.send(ev, '该操作需要管理员权限', at_sender=True)
         return
-    clan_id = 0
+    leader_name = None
     args = ev.message.extract_plain_text().split()
     if len(args) == 0:
         await bot.send(ev, '参数错误', at_sender=True)
         return
     clan_name = args[0]
-    if len(args) > 1 and args[1].isdigit():
-        clan_id = int(args[1])
+    if len(args) > 1:
+        leader_name = args[1]
     if not lmt.check(uid):
         await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
         return
     lmt.start_cd(uid)
 
-    clan_list = await search_clan(clan_name, clan_id)
+    clan_list = await search_clan(clan_name, leader_name)
     msg = ""
     if len(clan_list) == 0:
-        msg = "找不到指定工会"
+        msg = "找不到指定公会"
     elif len(clan_list) == 1:
         info = clan_list[0]
-        add_follow_clan(gid, clan_name, info["clan_id"])
+        add_follow_clan(gid, clan_name, info["leader_name"])
         msg = "关注成功\n"
         msg += format_clan_info(info)
     else:   #列出全部结果
-        msg = '查询到以下工会\n请使用"关注排名 工会名 工会id"命令指定关注的工会\n'
+        msg = '查询到以下公会\n请使用"关注排名 公会名 会长"命令指定关注的公会\n'
         for info in clan_list:
-            msg += format_dense_clan_info(info)
+            msg += format_compact_clan_info(info)
     
     await bot.send(ev, msg, at_sender=True)
 
@@ -307,7 +299,7 @@ async def clanbattle_rank_push_daily():
     group_list = get_group_list()
     for gid in group_list:
         if days == 0:
-            msg = '工会战开始啦!看看这都几点了?还不快起床出刀?'
+            msg = '公会战开始啦!看看这都几点了?还不快起床出刀?'
         else:
             msg = await get_follow_clan_report(gid)
         try:
@@ -325,7 +317,7 @@ async def clanbattle_rank_push_final():
     bot = hoshino.get_bot()
     group_list = get_group_list()
     for gid in group_list:
-        msg = '工会战即将结束,各位会员辛苦了!\n祝大家人生有梦,各自精彩!\n'
+        msg = '公会战即将结束,各位成员辛苦了!\n祝大家人生有梦,各自精彩!\n'
         msg += await get_follow_clan_report(gid)
         try:
             await bot.send_group_msg(group_id=int(gid), message = msg)
