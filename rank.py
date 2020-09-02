@@ -125,6 +125,13 @@ def format_compact_clan_info(clan_info):
         + f'分数:{clan_info["damage"]}\n'
     return msg
 
+def format_subsection_clan_info(clan_info):
+    msg = f'排名:{clan_info["rank"]}  ' \
+        + f'分数:{clan_info["damage"]}  ' \
+        + f'公会:{clan_info["clan_name"]}  ' \
+        + f'会长:{clan_info["leader_name"]}\n'
+    return msg
+
 #从bilibili获取公会信息列表
 async def query_clan_info_biligame(clan_name):
     info_list = []
@@ -180,7 +187,7 @@ async def get_subsection_report():
     else:   #列出全部结果
         report = "分段数据:\n"
         for info in clan_list:
-            report += format_compact_clan_info(info)
+            report += format_subsection_clan_info(info)
     return report
 
 #获取关注公会报告
