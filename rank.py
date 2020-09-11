@@ -13,7 +13,7 @@ lmt = hoshino.util.FreqLimiter(10)
 
 cycle_data = {
     'cycle_mode': 'days',
-    'cycle_days': 27,   #不知道为什么阿B把这次改成27天了
+    'cycle_days': 28,
     'base_date': datetime.date(2020, 7, 28),  #从巨蟹座开始计算
     'base_month': 5,
     'battle_days': 6
@@ -192,18 +192,16 @@ async def get_subsection_report():
 
 #获取关注公会报告
 async def get_follow_clan_report(group_id):
-    report = "关注的公会排名:\n"
     config = load_group_config(group_id)
-    empty = True
+    if len(config) == 0:
+        return "无关注数据"
+    report = "关注的公会排名:\n"
     for clan_name, leader_name in config.items():
         clan_list = await search_clan(clan_name, leader_name)
         if len(clan_list) == 1:
             report += format_compact_clan_info(clan_list[0])
-            empty = False
         else:
             report += f"公会:{clan_name}  会长:{leader_name}  未找到数据\n"
-    if empty:
-        report += "数据获取失败\n"
     return report
 
 @sv.on_fullmatch('查询分段')
@@ -270,6 +268,28 @@ async def add_follow(bot, ev: CQEvent):
             msg += format_compact_clan_info(info)
     
     await bot.send(ev, msg, at_sender=True)
+
+@sv.on_prefix('删除关注')
+async def remove_follow(bot, ev: CQEvent):
+    gid = ev.group_id
+    if not priv.check_priv(ev, priv.ADMIN):
+        await bot.send(ev, '该操作需要管理员权限', at_sender=True)
+        return
+    args = ev.message.extract_plain_text().split()
+    if len(args) == 0:
+        await bot.send(ev, '参数错误', at_sender=True)
+        return
+    clan_name = args[0]
+    msg = ''
+    config = load_group_config(gid)
+    if clan_name in config:
+        config.pop(clan_name)
+        save_group_config(gid, config)
+        msg = '删除成功'
+    else:
+        msg = '未关注指定公会'
+    await bot.send(ev, msg, at_sender=True)
+
 
 @sv.on_fullmatch('查询关注')
 async def query_follow(bot, ev: CQEvent):
