@@ -127,9 +127,12 @@ def format_compact_clan_info(clan_info):
 
 def format_subsection_clan_info(clan_info):
     msg = f'排名:{clan_info["rank"]}  ' \
-        + f'分数:{clan_info["damage"]}  ' \
-        + f'公会:{clan_info["clan_name"]}  ' \
+        + f'分数:{clan_info["damage"]}  '
+    if 'clan_name' in clan_info:
+        msg += f'公会:{clan_info["clan_name"]}  ' \
         + f'会长:{clan_info["leader_name"]}\n'
+    else:
+        msg += '公会:-  会长:-\n'
     return msg
 
 #从bilibili获取公会信息列表
