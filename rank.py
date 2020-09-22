@@ -3,6 +3,7 @@ import aiohttp
 import datetime
 import json
 import hoshino
+import re
 from hoshino import Service, priv 
 from hoshino.typing import CQEvent
 
@@ -207,6 +208,23 @@ async def get_follow_clan_report(group_id):
             report += f"公会:{clan_name}  会长:{leader_name}  未找到数据\n"
     return report
 
+def get_arg_names(arg: str):
+    clan_name = None
+    leader_name = None
+
+    names = re.findall(r"\[(.+?)\]",arg)
+    if len(names) > 0:
+        clan_name = names[0]
+        if len(names) > 1:
+            leader_name = names[1]
+    else: #不带[]
+        args = arg.split()
+        clan_name = args[0]
+        if len(args) > 1:
+            leader_name = args[1]
+    return clan_name, leader_name
+
+
 @sv.on_fullmatch('查询分段')
 async def query_subsection(bot, ev: CQEvent):
     uid = ev.user_id
@@ -220,19 +238,14 @@ async def query_subsection(bot, ev: CQEvent):
 @sv.on_prefix(['查询排名', '排名查询'])
 async def query_rank(bot, ev: CQEvent):
     uid = ev.user_id
-    leader_name = None
-    args = ev.message.extract_plain_text().split()
-    if len(args) == 0:
-        await bot.send(ev, '参数错误', at_sender=True)
-        return
-    clan_name = args[0]
-    if len(args) > 1:
-        leader_name = args[1]
-
     if not lmt.check(uid):
         await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
         return
     lmt.start_cd(uid)
+    clan_name, leader_name = get_arg_names(ev.message.extract_plain_text())
+    if not clan_name:
+        await bot.send(ev, '参数错误', at_sender=True)
+        return
     msg = await get_clan_report(clan_name, leader_name)
     await bot.send(ev, msg, at_sender=True)
 
@@ -243,19 +256,16 @@ async def add_follow(bot, ev: CQEvent):
     if not priv.check_priv(ev, priv.ADMIN):
         await bot.send(ev, '该操作需要管理员权限', at_sender=True)
         return
-    leader_name = None
-    args = ev.message.extract_plain_text().split()
-    if len(args) == 0:
-        await bot.send(ev, '参数错误', at_sender=True)
-        return
-    clan_name = args[0]
-    if len(args) > 1:
-        leader_name = args[1]
+
     if not lmt.check(uid):
         await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
         return
     lmt.start_cd(uid)
 
+    clan_name, leader_name = get_arg_names(ev.message.extract_plain_text())
+    if not clan_name:
+        await bot.send(ev, '参数错误', at_sender=True)
+        return
     clan_list = await search_clan(clan_name, leader_name)
     msg = ""
     if len(clan_list) == 0:
@@ -278,11 +288,10 @@ async def remove_follow(bot, ev: CQEvent):
     if not priv.check_priv(ev, priv.ADMIN):
         await bot.send(ev, '该操作需要管理员权限', at_sender=True)
         return
-    args = ev.message.extract_plain_text().split()
-    if len(args) == 0:
+    clan_name, _ = get_arg_names(ev.message.extract_plain_text())
+    if not clan_name:
         await bot.send(ev, '参数错误', at_sender=True)
         return
-    clan_name = args[0]
     msg = ''
     config = load_group_config(gid)
     if clan_name in config:
