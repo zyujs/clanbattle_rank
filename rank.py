@@ -78,13 +78,34 @@ def get_group_list():
             group_list.append(int(group))
     return group_list
         
+# 获取字符串长度（以半角字符计算）
+def str_len(name):
+	name = str(name)
+	i = 0
+	for uchar in name:
+		if ord(uchar) > 255:
+			i = i + 2
+		else:
+			i = i + 1
+	return i
+
+
+def align(s, length=0):
+	s = str(s)
+	length -= str_len(s)
+	if length > 0:
+		for _ in range(int(length/2)):
+			s += '　'
+		if length % 2 != 0:
+			s += ' '
+	return s
 
 def add_follow_clan(group_id, clan_name, leader_name):
     config = load_group_config(group_id)
     config[clan_name] = leader_name
     save_group_config(group_id, config)
 
-def get_boss_process(score):
+def get_boss_process(score, brief = False):
     lap = 0 #周目
     step = 0 #阶段 0-3
     current_boss = 0    #当前boss 0-4
@@ -109,7 +130,10 @@ def get_boss_process(score):
             lap += 1
     remain_hp = int(boss_hp[step][current_boss] - remain_score/boss_rate[step][current_boss])
     boss_hp = boss_hp[step][current_boss]
-    return f'{lap+1}周目{current_boss+1}王 [{remain_hp // 10000}万/{boss_hp // 10000}万] {round(remain_hp * 100/ boss_hp, 2)}%'
+    if brief:
+        return f'{lap+1}-{current_boss+1}({remain_hp * 100 // boss_hp}%)'
+    else:
+        return f'{lap+1}周目{current_boss+1}王 [{remain_hp // 10000}万/{boss_hp // 10000}万] {round(remain_hp * 100/ boss_hp, 2)}%'
 
 def format_clan_info(clan_info):
     msg = f'公会:{clan_info["clan_name"]}\n' \
@@ -119,21 +143,22 @@ def format_clan_info(clan_info):
         + f'进度:{get_boss_process(clan_info["damage"])}\n'
     return msg
 
-def format_compact_clan_info(clan_info):
-    msg = f'公会:{clan_info["clan_name"]}  ' \
-        + f'会长:{clan_info["leader_name"]}  ' \
-        + f'排名:{clan_info["rank"]}  ' \
-        + f'分数:{clan_info["damage"]}\n'
-    return msg
+compact_banner = f'{align("公会", 16)}会长\n{align("排名", 6)}{align("分数", 10)}进度'
 
-def format_subsection_clan_info(clan_info):
-    msg = f'排名:{clan_info["rank"]}  ' \
-        + f'分数:{clan_info["damage"]}  '
+def format_compact_clan_info(clan_info):
+    msg = '\n'
     if 'clan_name' in clan_info:
-        msg += f'公会:{clan_info["clan_name"]}  ' \
-        + f'会长:{clan_info["leader_name"]}\n'
+        msg += f'{clan_info["clan_name"]}　'
     else:
-        msg += '公会:-  会长:-\n'
+        msg += '-　'
+    if 'leader_name' in clan_info:
+        msg += f'{clan_info["leader_name"]}'
+    else:
+        msg += '-'
+    msg += '\n'
+    msg += f'{str(clan_info["rank"]):5s} '
+    msg += f'{str(clan_info["damage"]):10s} '
+    msg += f'{get_boss_process(clan_info["damage"], True)}'
     return msg
 
 #从bilibili获取公会信息列表
@@ -178,7 +203,7 @@ async def get_clan_report(clan_name, leader_name):
     elif len(clan_list) == 1:
         report = format_clan_info(clan_list[0])
     else:   #列出全部结果
-        report = "查询到以下结果\n"
+        report = "查询到以下结果:\n" + compact_banner
         for info in clan_list:
             report += format_compact_clan_info(info)
     return report
@@ -187,11 +212,11 @@ async def get_subsection_report():
     clan_list = await query_subsection_info_biligame()
     report = ""
     if len(clan_list) == 0:
-        report = "数据获取失败\n"
+        report = "数据获取失败"
     else:   #列出全部结果
-        report = "分段数据:\n"
+        report = compact_banner
         for info in clan_list:
-            report += format_subsection_clan_info(info)
+            report += format_compact_clan_info(info)
     return report
 
 #获取关注公会报告
@@ -199,7 +224,7 @@ async def get_follow_clan_report(group_id):
     config = load_group_config(group_id)
     if len(config) == 0:
         return "无关注数据"
-    report = "关注的公会排名:\n"
+    report = "关注的公会排名:\n" + compact_banner
     for clan_name, leader_name in config.items():
         clan_list = await search_clan(clan_name, leader_name)
         if len(clan_list) == 1:
@@ -229,42 +254,42 @@ def get_arg_names(arg: str):
 async def query_subsection(bot, ev: CQEvent):
     uid = ev.user_id
     if not lmt.check(uid):
-        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
+        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒')
         return
     lmt.start_cd(uid)
     msg = await get_subsection_report()
-    await bot.send(ev, msg, at_sender=True)
+    await bot.send(ev, msg)
 
 @sv.on_prefix(['查询排名', '排名查询'])
 async def query_rank(bot, ev: CQEvent):
     uid = ev.user_id
     if not lmt.check(uid):
-        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
+        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒')
         return
     lmt.start_cd(uid)
     clan_name, leader_name = get_arg_names(ev.message.extract_plain_text())
     if not clan_name:
-        await bot.send(ev, '参数错误', at_sender=True)
+        await bot.send(ev, '参数错误')
         return
     msg = await get_clan_report(clan_name, leader_name)
-    await bot.send(ev, msg, at_sender=True)
+    await bot.send(ev, msg)
 
 @sv.on_prefix('添加关注')
 async def add_follow(bot, ev: CQEvent):
     uid = ev.user_id
     gid = ev.group_id
     if not priv.check_priv(ev, priv.ADMIN):
-        await bot.send(ev, '该操作需要管理员权限', at_sender=True)
+        await bot.send(ev, '该操作需要管理员权限')
         return
 
     if not lmt.check(uid):
-        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
+        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒')
         return
     lmt.start_cd(uid)
 
     clan_name, leader_name = get_arg_names(ev.message.extract_plain_text())
     if not clan_name:
-        await bot.send(ev, '参数错误', at_sender=True)
+        await bot.send(ev, '参数错误')
         return
     clan_list = await search_clan(clan_name, leader_name)
     msg = ""
@@ -276,21 +301,21 @@ async def add_follow(bot, ev: CQEvent):
         msg = "关注成功\n"
         msg += format_clan_info(info)
     else:   #列出全部结果
-        msg = '查询到以下公会\n请使用"关注排名 公会名 会长"命令指定关注的公会\n'
+        msg = '查询到多个同名公会\n请使用"关注排名 公会名 会长"命令指定要关注的公会'
         for info in clan_list:
             msg += format_compact_clan_info(info)
     
-    await bot.send(ev, msg, at_sender=True)
+    await bot.send(ev, msg)
 
 @sv.on_prefix('删除关注')
 async def remove_follow(bot, ev: CQEvent):
     gid = ev.group_id
     if not priv.check_priv(ev, priv.ADMIN):
-        await bot.send(ev, '该操作需要管理员权限', at_sender=True)
+        await bot.send(ev, '该操作需要管理员权限')
         return
     clan_name, _ = get_arg_names(ev.message.extract_plain_text())
     if not clan_name:
-        await bot.send(ev, '参数错误', at_sender=True)
+        await bot.send(ev, '参数错误')
         return
     msg = ''
     config = load_group_config(gid)
@@ -300,7 +325,7 @@ async def remove_follow(bot, ev: CQEvent):
         msg = '删除成功'
     else:
         msg = '未关注指定公会'
-    await bot.send(ev, msg, at_sender=True)
+    await bot.send(ev, msg)
 
 
 @sv.on_fullmatch('查询关注')
@@ -308,25 +333,25 @@ async def query_follow(bot, ev: CQEvent):
     uid = ev.user_id
     gid = ev.group_id
     if not lmt.check(uid):
-        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
+        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒')
         return
     lmt.start_cd(uid)
     msg = await get_follow_clan_report(gid)
-    await bot.send(ev, msg, at_sender=True)
+    await bot.send(ev, msg)
 
 @sv.on_fullmatch('清空关注')
 async def clear_follow(bot, ev: CQEvent):
     uid = ev.user_id
     gid = ev.group_id
     if not priv.check_priv(ev, priv.ADMIN):
-        await bot.send(ev, '该操作需要管理员权限', at_sender=True)
+        await bot.send(ev, '该操作需要管理员权限')
         return
     if not lmt.check(uid):
-        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒', at_sender=True)
+        await bot.send(ev, f'冷却中, 剩余时间{round(lmt.left_time(uid))}秒')
         return
     lmt.start_cd(uid)
     delete_group_config(gid)
-    await bot.send(ev, "关注列表已清空", at_sender=True)
+    await bot.send(ev, "关注列表已清空")
 
 #每日推送
 @sv_push.scheduled_job('cron',hour='5',minute='30')
