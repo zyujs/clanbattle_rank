@@ -14,25 +14,33 @@ lmt = hoshino.util.FreqLimiter(10)
 
 cycle_data = {
     'cycle_mode': 'days',
-    'cycle_days': 28,
-    'base_date': datetime.date(2020, 7, 28),  #从巨蟹座开始计算
-    'base_month': 5,
+    'cycle_days': 27,
+    'base_date': datetime.date(2020, 11, 17),  #从天蝎座开始计算
+    'base_month': 9,
     'battle_days': 6
 }
 
+data = {
+    'subsection': {},
+    'subsection_time': 0,
+    'rank': {},
+    'group': {},
+}
+
 sv = Service('clanbattle_rank', bundle='pcr查询', help_= '查询排名 公会名 [会长名] : 查询指定公会排名\n查询分段 : 查询分段信息\n查询关注 : 查询关注的公会信息\n添加关注 公会名 [会长名] : (需要管理员权限)将指定公会加入关注列表,如有重名需要附加会长名\n清空关注 : (需要管理员权限)清空关注列表')
-sv_push = Service('clanbattle_rank_push', bundle='pcr查询', help_= '关注公会信息每日自动推送')
 
 boss_data = {
     "hp": [
         [6000000, 8000000, 10000000, 12000000, 20000000],
         [6000000, 8000000, 10000000, 12000000, 20000000],
+        [6000000, 8000000, 10000000, 12000000, 20000000],
     ],
     "rate": [
         [1.0, 1.0, 1.3, 1.3, 1.5],  #1
-        [1.3, 1.3, 1.8, 1.8, 2.0]  #2-10
+        [1.3, 1.3, 1.8, 1.8, 2.0],  #2-5
+        [2.0, 2.0, 2.5, 2.5, 3.0],  #6-
     ],
-    "step": [0, 1]
+    "step": [0, 1, 5]
 }
 
 def get_days_from_battle_start():
@@ -230,7 +238,7 @@ async def get_follow_clan_report(group_id):
         if len(clan_list) == 1:
             report += format_compact_clan_info(clan_list[0])
         else:
-            report += f"公会:{clan_name}  会长:{leader_name}  未找到数据\n"
+            report += f"\n公会:{clan_name}  会长:{leader_name}\n未找到数据"
     return report
 
 def get_arg_names(arg: str):
@@ -244,9 +252,10 @@ def get_arg_names(arg: str):
             leader_name = names[1]
     else: #不带[]
         args = arg.split()
-        clan_name = args[0]
-        if len(args) > 1:
-            leader_name = args[1]
+        if len(args) > 0:
+            clan_name = args[0]
+            if len(args) > 1:
+                leader_name = args[1]
     return clan_name, leader_name
 
 
@@ -354,38 +363,42 @@ async def clear_follow(bot, ev: CQEvent):
     await bot.send(ev, "关注列表已清空")
 
 #每日推送
-@sv_push.scheduled_job('cron',hour='5',minute='30')
+@sv.scheduled_job('cron',hour='5',minute='30')
 async def clanbattle_rank_push_daily():
     days = get_days_from_battle_start()
     if days >= cycle_data['battle_days']:
         return
     bot = hoshino.get_bot()
     group_list = get_group_list()
+    available_group = await sv.get_enable_groups()
     for gid in group_list:
-        if days == 0:
-            msg = '公会战开始啦!看看这都几点了?还不快起床出刀?'
-        else:
-            msg = await get_follow_clan_report(gid)
-        try:
-            await bot.send_group_msg(group_id=int(gid), message = msg)
-            hoshino.logger.info(f'群{gid} 推送排名成功')
-        except:
-            hoshino.logger.info(f'群{gid} 推送排名错误')
+        if int(gid) in available_group:
+            if days == 0:
+                msg = '公会战开始啦!看看这都几点了?还不快起床出刀?'
+            else:
+                msg = await get_follow_clan_report(gid)
+            try:
+                await bot.send_group_msg(group_id=int(gid), message = msg)
+                hoshino.logger.info(f'群{gid} 推送排名成功')
+            except:
+                hoshino.logger.info(f'群{gid} 推送排名错误')
         
 #最后一天推送 0点之后数据全部木大 所以改到最后一天23点55推送最终数据
-@sv_push.scheduled_job('cron',hour='23',minute='55')
+@sv.scheduled_job('cron',hour='23',minute='55')
 async def clanbattle_rank_push_final():
     days = get_days_from_battle_start()
     if days != cycle_data['battle_days'] - 1:
         return
     bot = hoshino.get_bot()
+    available_group = await sv.get_enable_groups()
     group_list = get_group_list()
     for gid in group_list:
-        msg = '公会战即将结束,各位成员辛苦了!\n祝大家人生有梦,各自精彩!\n'
-        msg += await get_follow_clan_report(gid)
-        try:
-            await bot.send_group_msg(group_id=int(gid), message = msg)
-            hoshino.logger.info(f'群{gid} 推送排名成功')
-        except:
-            hoshino.logger.info(f'群{gid} 推送排名错误')
+        if int(gid) in available_group:
+            msg = '公会战即将结束,各位成员辛苦了!\n祝大家人生有梦,各自精彩!\n'
+            msg += await get_follow_clan_report(gid)
+            try:
+                await bot.send_group_msg(group_id=int(gid), message = msg)
+                hoshino.logger.info(f'群{gid} 推送排名成功')
+            except:
+                hoshino.logger.info(f'群{gid} 推送排名错误')
         
