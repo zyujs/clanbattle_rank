@@ -14,7 +14,7 @@ lmt = hoshino.util.FreqLimiter(10)
 
 cycle_data = {
     'cycle_mode': 'days',
-    'cycle_days': 27,
+    'cycle_days': 28,
     'base_date': datetime.date(2020, 11, 17),  #从天蝎座开始计算
     'base_month': 9,
     'battle_days': 6
@@ -27,7 +27,7 @@ data = {
     'group': {},
 }
 
-sv = Service('clanbattle_rank', bundle='pcr查询', help_= '查询排名 公会名 [会长名] : 查询指定公会排名\n查询分段 : 查询分段信息\n查询关注 : 查询关注的公会信息\n添加关注 公会名 [会长名] : (需要管理员权限)将指定公会加入关注列表,如有重名需要附加会长名\n清空关注 : (需要管理员权限)清空关注列表')
+sv = Service('clanbattle_rank', bundle='pcr查询', help_= '查询排名 公会名 [会长名] : 查询指定公会排名\n查询分段 : 查询分段信息\n查询关注 : 查询关注的公会信息\n添加关注 公会名 [会长名] : (需要管理员权限)将指定公会加入关注列表,如有重名需要附加会长名\n删除关注 公会名 : (需要管理员权限)从关注列表移除指定公会\n清空关注 : (需要管理员权限)清空关注列表')
 
 boss_data = {
     "hp": [
@@ -36,11 +36,11 @@ boss_data = {
         [6000000, 8000000, 10000000, 12000000, 20000000],
     ],
     "rate": [
-        [1.0, 1.0, 1.3, 1.3, 1.5],  #1
-        [1.4, 1.4, 1.8, 1.8, 2.0],  #2-5
-        [2.0, 2.0, 2.5, 2.5, 3.0],  #6-
+        [1.0, 1.0, 1.3, 1.3, 1.5],  #1-3
+        [1.4, 1.4, 1.8, 1.8, 2.0],  #4-10
+        [2.0, 2.0, 2.5, 2.5, 3.0],  #11-
     ],
-    "step": [0, 1, 5]
+    "step": [0, 3, 10]
 }
 
 def get_days_from_battle_start():
@@ -394,7 +394,7 @@ async def clanbattle_rank_push_final():
     group_list = get_group_list()
     for gid in group_list:
         if int(gid) in available_group:
-            msg = '公会战即将结束,各位成员辛苦了!\n祝大家人生有梦,各自精彩!\n'
+            msg = '公会战即将结束,愿各位人生有梦,各自精彩!\n'
             msg += await get_follow_clan_report(gid)
             try:
                 await bot.send_group_msg(group_id=int(gid), message = msg)
