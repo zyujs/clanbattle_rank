@@ -7,6 +7,8 @@ import re
 from hoshino import Service, priv 
 from hoshino.typing import CQEvent
 
+USE_ONLINE_DATA = True
+
 api_search = 'https://tools-wiki.biligame.com/pcr/getTableInfo?type=search&search={}&page=0'
 api_subsection = 'https://tools-wiki.biligame.com/pcr/getTableInfo?type=subsection'
 
@@ -42,6 +44,29 @@ boss_data = {
     ],
     "step": [0, 3, 10]
 }
+
+event_data = {}
+
+async def load_event_cn():
+    global event_data
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://mahomaho-insight.info/cached/gameevents.json') as resp:
+                data = await resp.json()
+    except:
+        pass
+    if data and 'cn' in data:
+        event_data = None
+        now = datetime.datetime.now()
+        for item in data['cn']:
+            start_time = datetime.datetime.strptime(item['start'], r"%Y/%m/%d %H:%M")
+            end_time = datetime.datetime.strptime(item['end'], r"%Y/%m/%d %H:%M")
+            event = {'title': item['title'], 'start': start_time, 'end': end_time}
+            if '团队战' in event['title'] and end_time > now:
+                event_data = event
+        return 0
+
+    return 1
 
 def get_days_from_battle_start():
     today = datetime.date.today()
@@ -196,7 +221,7 @@ async def search_clan(clan_name, leader_name = None):
     info_list = await query_clan_info_biligame(clan_name)
     result_list = []
     for info in info_list:
-        if leader_name: #指定了会长名
+        if len(info_list) > 1 and leader_name: #指定了会长名
             if info["leader_name"] == leader_name:
                 result_list.append(info)
         else:
@@ -363,11 +388,17 @@ async def clear_follow(bot, ev: CQEvent):
     await bot.send(ev, "关注列表已清空")
 
 #每日推送
-@sv.scheduled_job('cron',hour='5',minute='30')
+@sv.scheduled_job('cron',hour='5',minute='15')
 async def clanbattle_rank_push_daily():
-    days = get_days_from_battle_start()
-    if days >= cycle_data['battle_days']:
-        return
+    if USE_ONLINE_DATA and await load_event_cn() == 0:
+        now = datetime.datetime.now()
+        if not event_data or now < event_data['start'] or now > event_data['end']:
+            return
+    else:
+        days = get_days_from_battle_start()
+        if days >= cycle_data['battle_days']:
+            return
+
     bot = hoshino.get_bot()
     group_list = get_group_list()
     available_group = await sv.get_enable_groups()
@@ -386,9 +417,17 @@ async def clanbattle_rank_push_daily():
 #最后一天推送 0点之后数据全部木大 所以改到最后一天23点55推送最终数据
 @sv.scheduled_job('cron',hour='23',minute='55')
 async def clanbattle_rank_push_final():
-    days = get_days_from_battle_start()
-    if days != cycle_data['battle_days'] - 1:
-        return
+    if USE_ONLINE_DATA and await load_event_cn() == 0:
+        now = datetime.datetime.now()
+        if not event_data or now < event_data['start'] or now > event_data['end']:
+            return
+        if event_data['end'] - now > datetime.timedelta.days(1):
+            return
+    else:
+        days = get_days_from_battle_start()
+        if days != cycle_data['battle_days'] - 1:
+            return
+
     bot = hoshino.get_bot()
     available_group = await sv.get_enable_groups()
     group_list = get_group_list()
