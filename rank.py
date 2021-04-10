@@ -394,6 +394,7 @@ async def clanbattle_rank_push_daily():
         now = datetime.datetime.now()
         if not event_data or now < event_data['start'] or now > event_data['end']:
             return
+        days = (now - event_data['start']) // datetime.timedelta(days=1)
     else:
         days = get_days_from_battle_start()
         if days >= cycle_data['battle_days']:
@@ -421,7 +422,7 @@ async def clanbattle_rank_push_final():
         now = datetime.datetime.now()
         if not event_data or now < event_data['start'] or now > event_data['end']:
             return
-        if event_data['end'] - now > datetime.timedelta.days(1):
+        if event_data['end'] - now > datetime.timedelta(days=1):
             return
     else:
         days = get_days_from_battle_start()
