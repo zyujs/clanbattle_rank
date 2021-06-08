@@ -172,8 +172,8 @@ def format_clan_info(clan_info):
     msg = f'公会:{clan_info["clan_name"]}\n' \
         + f'会长:{clan_info["leader_name"]}\n' \
         + f'排名:{clan_info["rank"]}\n' \
-        + f'分数:{clan_info["damage"]}\n' \
-        + f'进度:{get_boss_process(clan_info["damage"])}\n'
+        + f'分数:{clan_info["damage"] // 100000}\n' \
+        + f'进度:{get_boss_process(clan_info["damage"] // 100000)}\n'
     return msg
 
 compact_banner = f'{align("公会", 16)}会长\n{align("排名", 6)}{align("分数", 10)}进度'
@@ -190,8 +190,8 @@ def format_compact_clan_info(clan_info):
         msg += '-'
     msg += '\n'
     msg += f'{str(clan_info["rank"]):5s} '
-    msg += f'{str(clan_info["damage"]):10s} '
-    msg += f'{get_boss_process(clan_info["damage"], True)}'
+    msg += f'{str(clan_info["damage"] // 100000):10s} '
+    msg += f'{get_boss_process(clan_info["damage"] // 100000, True)}'
     return msg
 
 #从bilibili获取公会信息列表
@@ -414,6 +414,15 @@ async def clanbattle_rank_push_daily():
                 hoshino.logger.info(f'群{gid} 推送排名成功')
             except:
                 hoshino.logger.info(f'群{gid} 推送排名错误')
+    
+    msg = await get_subsection_report()
+    for gid in group_list:
+        if days != 0 and int(gid) in available_group:
+            try:
+                await bot.send_group_msg(group_id=int(gid), message = msg)
+                hoshino.logger.info(f'群{gid} 推送分段成功')
+            except:
+                hoshino.logger.info(f'群{gid} 推送分段失败')
         
 #最后一天推送 0点之后数据全部木大 所以改到最后一天23点55推送最终数据
 @sv.scheduled_job('cron',hour='23',minute='55')
