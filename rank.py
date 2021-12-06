@@ -366,7 +366,7 @@ async def clear_follow(bot, ev: CQEvent):
 @sv.scheduled_job('cron',hour='5',minute='15')
 async def clanbattle_rank_push_daily():
     days = get_days_from_battle_start()
-    if days >= battle_days:
+    if days >= battle_days or days < 0:
         return
 
     bot = hoshino.get_bot()
